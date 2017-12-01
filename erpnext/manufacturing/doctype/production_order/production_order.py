@@ -441,6 +441,8 @@ class ProductionOrder(Document):
 			for item in sorted(item_dict.values(), key=lambda d: d['idx']):
 				self.append('required_items', {
 					'item_code': item.item_code,
+					'item_name': item.item_name,
+					'description': item.description,
 					'required_qty': item.qty,
 					'source_warehouse': item.source_warehouse or item.default_warehouse
 				})
@@ -569,7 +571,7 @@ def get_events(start, end, filters=None):
 		where ((ifnull(planned_start_date, '0000-00-00')!= '0000-00-00') \
 				and (planned_start_date <= %(end)s) \
 			and ((ifnull(planned_start_date, '0000-00-00')!= '0000-00-00') \
-				and planned_end_date >= %(start)s)) {conditions}
+				and ifnull(planned_end_date, '2199-12-31 00:00:00') >= %(start)s)) {conditions}
 		""".format(conditions=conditions), {
 			"start": start,
 			"end": end

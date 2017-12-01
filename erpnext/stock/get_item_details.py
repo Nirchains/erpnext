@@ -96,16 +96,6 @@ def get_item_details(args):
 
 	return out
 
-	# print(frappe._dict({
-	# 	'has_serial_no'	: out.has_serial_no,
-	# 	'has_batch_no'	: out.has_batch_no
-	# }))
-
-	# return frappe._dict({
-	# 	'has_serial_no'	: out.has_serial_no,
-	# 	'has_batch_no'	: out.has_batch_no
-	# })
-
 def process_args(args):
 	if isinstance(args, basestring):
 		args = json.loads(args)
@@ -373,11 +363,11 @@ def get_pos_profile_item_details(company, args, pos_profile=None):
 @frappe.whitelist()
 def get_pos_profile(company):
 	pos_profile = frappe.db.sql("""select * from `tabPOS Profile` where user = %s
-		 and company = %s""", (frappe.session['user'], company), as_dict=1)
+		and company = %s and ifnull(disabled,0) != 1""", (frappe.session['user'], company), as_dict=1)
 
 	if not pos_profile:
 		pos_profile = frappe.db.sql("""select * from `tabPOS Profile`
-			where ifnull(user,'') = '' and company = %s""", company, as_dict=1)
+			where ifnull(user,'') = '' and company = %s and ifnull(disabled,0) != 1""", company, as_dict=1)
 
 	return pos_profile and pos_profile[0] or None
 
@@ -532,8 +522,6 @@ def get_default_bom(item_code=None):
 		bom = frappe.db.get_value("BOM", {"docstatus": 1, "is_default": 1, "is_active": 1, "item": item_code})
 		if bom:
 			return bom
-		else:
-			frappe.throw(_("No default BOM exists for Item {0}").format(item_code))
 
 def get_valuation_rate(item_code, warehouse=None):
 	item = frappe.get_doc("Item", item_code)
