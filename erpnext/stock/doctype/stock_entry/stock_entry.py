@@ -9,7 +9,7 @@ from frappe.utils import cstr, cint, flt, comma_or, getdate, nowdate, formatdate
 from erpnext.stock.utils import get_incoming_rate
 from erpnext.stock.stock_ledger import get_previous_sle, NegativeStockError
 from erpnext.stock.get_item_details import get_bin_details, get_default_cost_center, get_conversion_factor
-from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos
+from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos, set_batch_nos_multiple
 from erpnext.manufacturing.doctype.bom.bom import validate_bom_no
 import json
 
@@ -52,7 +52,8 @@ class StockEntry(StockController):
 		if self._action == 'submit':
 			self.make_batches('t_warehouse')
 		else:
-			set_batch_nos(self, 's_warehouse')
+			#set_batch_nos(self, 's_warehouse')
+			set_batch_nos_multiple(self, 's_warehouse')
 
 		self.set_actual_qty()
 		self.calculate_rate_and_amount(update_finished_item_rate=False)
@@ -649,13 +650,13 @@ class StockEntry(StockController):
 	def get_transfered_raw_materials(self):
 		transferred_materials = frappe.db.sql("""
 			select
-				item_name, item_code, sum(qty) as qty, sed.t_warehouse as warehouse,
+				item_name, item_code, sum(qty) as qty, sed.t_warehouse as warehouse, sed.batch_no,
 				description, stock_uom, expense_account, cost_center
 			from `tabStock Entry` se,`tabStock Entry Detail` sed
 			where
 				se.name = sed.parent and se.docstatus=1 and se.purpose='Material Transfer for Manufacture'
 				and se.production_order= %s and ifnull(sed.t_warehouse, '') != ''
-			group by sed.item_code, sed.t_warehouse
+			group by sed.item_code, sed.t_warehouse, sed.batch_no
 		""", self.production_order, as_dict=1)
 
 		materials_already_backflushed = frappe.db.sql("""
@@ -701,6 +702,7 @@ class StockEntry(StockController):
 						"stock_uom": item.stock_uom,
 						"expense_account": item.expense_account,
 						"cost_center": item.buying_cost_center,
+						"batch_no":	item.batch_no or ""
 					}
 				})
 
@@ -782,6 +784,8 @@ class StockEntry(StockController):
 
 			# to be assigned for finished item
 			se_child.bom_no = bom_no
+			
+			se_child.batch_no = cstr(item_dict[d].get("batch_no"))
 
 	def validate_with_material_request(self):
 		for item in self.get("items"):

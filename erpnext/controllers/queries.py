@@ -253,12 +253,24 @@ def get_delivery_notes_to_be_billed(doctype, txt, searchfield, start, page_len, 
 		"txt": "%(txt)s"
 	}, {"txt": ("%%%s%%" % txt)}, as_dict=as_dict)
 
+def remove_none_elements_from_list(list):
+    return [e for e in list if e not in (None, "")]
 
 def get_batch_no(doctype, txt, searchfield, start, page_len, filters):
-	cond = ""
+	
 	if filters.get("posting_date"):
-		cond = "and (ifnull(batch.expiry_date, '')='' or batch.expiry_date >= %(posting_date)s)"
+		cond = " and (ifnull(batch.expiry_date, '')='' or batch.expiry_date >= %(posting_date)s)"
 
+	key = "batch_id"
+	cond_batch = ""
+	if filters.get(key):
+		value = filters.get(key)
+		_operator = value[0]
+		_values = remove_none_elements_from_list(value[1])
+		if len(_values) > 0:
+			values = ",".join(map(str,_values))
+			cond_batch = " and `" + key + "` " + _operator + "(" + values + ") "
+		
 	batch_nos = None
 	args = {
 		'item_code': filters.get("item_code"),
@@ -279,10 +291,11 @@ def get_batch_no(doctype, txt, searchfield, start, page_len, filters):
 					and sle.batch_no like %(txt)s
 					and batch.docstatus < 2
 					{0}
+					{1}
 					{match_conditions}
 				group by batch_no having sum(sle.actual_qty) > 0
 				order by batch.expiry_date, sle.batch_no desc
-				limit %(start)s, %(page_len)s""".format(cond, match_conditions=get_match_cond(doctype)), args)
+				limit %(start)s, %(page_len)s""".format(cond,cond_batch, match_conditions=get_match_cond(doctype)), args)
 
 	if batch_nos:
 		return batch_nos
@@ -292,9 +305,10 @@ def get_batch_no(doctype, txt, searchfield, start, page_len, filters):
 			and name like %(txt)s
 			and docstatus < 2
 			{0}
+			{1}
 			{match_conditions}
 			order by expiry_date, name desc
-			limit %(start)s, %(page_len)s""".format(cond, match_conditions=get_match_cond(doctype)), args)
+			limit %(start)s, %(page_len)s""".format(cond, cond_batch,match_conditions=get_match_cond(doctype)), args)
 
 def get_account_list(doctype, txt, searchfield, start, page_len, filters):
 	filter_list = []
