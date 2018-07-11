@@ -123,9 +123,9 @@ class Timesheet(Document):
 			if self.production_order and flt(data.completed_qty) == 0:
 				frappe.throw(_("Row {0}: Completed Qty must be greater than zero.").format(data.idx))
 
-			if self.production_order and flt(pending_qty) < flt(data.completed_qty) and flt(pending_qty) > 0:
+			"""if self.production_order and flt(pending_qty) < flt(data.completed_qty) and flt(pending_qty) > 0:
 				frappe.throw(_("Row {0}: Completed Qty cannot be more than {1} for operation {2}").format(data.idx, pending_qty, data.operation),
-					OverProductionLoggedError)
+					OverProductionLoggedError)"""
 
 	def update_production_order(self, time_sheet):
 		if self.production_order:
