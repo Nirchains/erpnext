@@ -772,6 +772,8 @@ class StockEntry(StockController):
 			se_child.qty = flt(item_dict[d]["qty"])
 			se_child.expense_account = item_dict[d].get("expense_account") or expense_account
 			se_child.cost_center = item_dict[d].get("cost_center") or cost_center
+			#PFG
+			se_child.allow_zero_valuation_rate = 1
 
 			if se_child.s_warehouse==None:
 				se_child.s_warehouse = self.from_warehouse
