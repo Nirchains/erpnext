@@ -270,6 +270,8 @@ def get_batch_no(doctype, txt, searchfield, start, page_len, filters):
 		if len(_values) > 0:
 			values = ",".join(map(str,_values))
 			cond_batch = " and `" + key + "` " + _operator + "(" + values + ") "
+
+	cond_batch = ""
 		
 	batch_nos = None
 	args = {
