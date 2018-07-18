@@ -216,9 +216,19 @@ def set_missing_values(source, target_doc):
 	target_doc.run_method("calculate_taxes_and_totals")
 
 def update_item(obj, target, source_parent):
-	target.conversion_factor = 1
-	target.qty = flt(obj.qty) - flt(obj.ordered_qty)
-	target.stock_qty = target.qty
+	item = frappe.get_doc("Item", obj.item_code)
+	uom = item.purchase_uom if item.purchase_uom else item.stock_uom
+	if uom != obj.uom:
+		from erpnext.stock.get_item_details import get_conversion_factor
+		conversion_factor = flt(get_conversion_factor(obj.item_code, uom)['conversion_factor'])
+		target.uom = uom
+		target.qty = (flt(obj.qty)/conversion_factor) - (flt(obj.ordered_qty)/conversion_factor)
+		target.stock_qty = target.qty * conversion_factor
+		target.conversion_factor = conversion_factor
+	else:
+		target.conversion_factor = 1
+		target.qty = flt(obj.qty) - flt(obj.ordered_qty)
+		target.stock_qty = target.qty
 
 @frappe.whitelist()
 def make_purchase_order(source_name, target_doc=None):
