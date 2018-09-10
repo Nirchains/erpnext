@@ -257,6 +257,7 @@ def remove_none_elements_from_list(list):
     return [e for e in list if e not in (None, "")]
 
 def get_batch_no(doctype, txt, searchfield, start, page_len, filters):
+	cond = ""
 	
 	if filters.get("posting_date"):
 		cond = " and (ifnull(batch.expiry_date, '')='' or batch.expiry_date >= %(posting_date)s)"
