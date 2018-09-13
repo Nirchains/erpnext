@@ -221,6 +221,12 @@ def update_item(obj, target, source_parent):
 	if uom != obj.uom:
 		from erpnext.stock.get_item_details import get_conversion_factor
 		conversion_factor = flt(get_conversion_factor(obj.item_code, uom)['conversion_factor'])
+		if conversion_factor == 0:
+			frappe.throw("""Debe completar el apartado 'Unidades de medida' del producto <a href='#Form/Item/{0}' target='_blank'>{1}</a>, 
+				ya que est&aacute; tratando de convertir de {2} a {3} 
+				sin especificar el factor de conversi&oacute;n. 
+				<br><br>-> <a class='btn btn-warning' href='#Form/Item/{0}' target='_blank'>Abrir {1}</a>
+				&nbsp;&nbsp; <a class='btn btn-default' href='https://docs.google.com/document/d/1pHBYzlVx7vL9XSLt3o0cAyqsoycF3ZE5Zr6vUTyR4Dc/edit?usp=sharing' target='_blank'>Manual de ayuda</a>""".format(item.item_code, item.item_code, uom, item.stock_uom))
 		target.uom = uom
 		target.qty = (flt(obj.qty)/conversion_factor) - (flt(obj.ordered_qty)/conversion_factor)
 		target.stock_qty = target.qty * conversion_factor
