@@ -119,7 +119,7 @@ class ProductionOrder(Document):
 
 	def update_status(self, status=None):
 		'''Update status of production order if unknown'''
-		if status != "Stopped":
+		if status != "Stopped" and status != "Completed":
 			status = self.get_status(status)
 
 		if status != self.status:
