@@ -9,7 +9,7 @@ from frappe.utils import cstr, cint, flt, comma_or, getdate, nowdate, formatdate
 from erpnext.stock.utils import get_incoming_rate
 from erpnext.stock.stock_ledger import get_previous_sle, NegativeStockError, get_valuation_rate
 from erpnext.stock.get_item_details import get_bin_details, get_default_cost_center, get_conversion_factor
-from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos, get_batch_qty
+from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos, get_batch_qty, set_batch_nos_multiple
 from erpnext.manufacturing.doctype.bom.bom import validate_bom_no
 from erpnext.stock.utils import get_bin
 import json
@@ -57,7 +57,9 @@ class StockEntry(StockController):
 		if self._action == 'submit':
 			self.make_batches('t_warehouse')
 		else:
-			set_batch_nos(self, 's_warehouse')
+			#PFG
+			#set_batch_nos(self, 's_warehouse')
+			set_batch_nos_multiple(self, 's_warehouse')
 
 		self.set_incoming_rate()
 		self.set_actual_qty()
@@ -607,6 +609,13 @@ class StockEntry(StockController):
 					frappe.db.get_single_value("Manufacturing Settings", "backflush_raw_materials_based_on")== "Material Transferred for Manufacture":
 					self.get_transfered_raw_materials()
 
+					#PFG: Solucion a problema de las mermas
+					scrap_item_dict = self.get_bom_scrap_material(self.fg_completed_qty)
+					for item in scrap_item_dict.values():
+						if self.pro_doc and self.pro_doc.scrap_warehouse:
+							item["to_warehouse"] = self.pro_doc.scrap_warehouse
+					self.add_to_stock_entry_detail(scrap_item_dict, bom_no=self.bom_no)
+
 				else:
 					if not self.fg_completed_qty:
 						frappe.throw(_("Manufacturing Quantity is mandatory"))
@@ -719,13 +728,13 @@ class StockEntry(StockController):
 	def get_transfered_raw_materials(self):
 		transferred_materials = frappe.db.sql("""
 			select
-				item_name, item_code, sum(qty) as qty, sed.t_warehouse as warehouse,
+				item_name, item_code, sum(qty) as qty, sed.t_warehouse as warehouse, sed.batch_no,
 				description, stock_uom, expense_account, cost_center
 			from `tabStock Entry` se,`tabStock Entry Detail` sed
 			where
 				se.name = sed.parent and se.docstatus=1 and se.purpose='Material Transfer for Manufacture'
 				and se.production_order= %s and ifnull(sed.t_warehouse, '') != ''
-			group by sed.item_code, sed.t_warehouse
+			group by sed.item_code, sed.t_warehouse, sed.batch_no
 		""", self.production_order, as_dict=1)
 
 		materials_already_backflushed = frappe.db.sql("""
@@ -771,6 +780,7 @@ class StockEntry(StockController):
 						"stock_uom": item.stock_uom,
 						"expense_account": item.expense_account,
 						"cost_center": item.buying_cost_center,
+						"batch_no":	item.batch_no or ""
 					}
 				})
 
@@ -840,6 +850,8 @@ class StockEntry(StockController):
 			se_child.qty = flt(item_dict[d]["qty"], se_child.precision("qty"))
 			se_child.expense_account = item_dict[d].get("expense_account") or expense_account
 			se_child.cost_center = item_dict[d].get("cost_center") or cost_center
+			#PFG
+			se_child.allow_zero_valuation_rate = 1
 
 			if item_dict[d].get("idx"):
 				se_child.idx = item_dict[d].get("idx")
@@ -855,6 +867,8 @@ class StockEntry(StockController):
 
 			# to be assigned for finished item
 			se_child.bom_no = bom_no
+			
+			se_child.batch_no = cstr(item_dict[d].get("batch_no"))
 
 	def validate_with_material_request(self):
 		for item in self.get("items"):
