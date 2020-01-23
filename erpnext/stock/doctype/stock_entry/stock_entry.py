@@ -10,7 +10,7 @@ from erpnext.stock.utils import get_incoming_rate
 from erpnext.stock.stock_ledger import get_previous_sle, NegativeStockError, get_valuation_rate
 from erpnext.stock.get_item_details import get_bin_details, get_default_cost_center, get_conversion_factor, get_reserved_qty_for_so
 from erpnext.setup.doctype.item_group.item_group import get_item_group_defaults
-from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos, get_batch_qty
+from erpnext.stock.doctype.batch.batch import get_batch_no, set_batch_nos, get_batch_qty, set_batch_nos_multiple
 from erpnext.stock.doctype.item.item import get_item_defaults
 from erpnext.manufacturing.doctype.bom.bom import validate_bom_no, add_additional_cost
 from erpnext.stock.utils import get_bin
@@ -70,6 +70,9 @@ class StockEntry(StockController):
 			self.make_batches('t_warehouse')
 		else:
 			set_batch_nos(self, 's_warehouse')
+			#PFG
+			#set_batch_nos(self, 's_warehouse')
+			set_batch_nos_multiple(self, 's_warehouse')
 
 		self.set_incoming_rate()
 		self.set_actual_qty()
@@ -725,6 +728,13 @@ class StockEntry(StockController):
 					"backflush_raw_materials_based_on")== "Material Transferred for Manufacture"):
 					self.get_transfered_raw_materials()
 
+					#PFG: Solucion a problema de las mermas
+					scrap_item_dict = self.get_bom_scrap_material(self.fg_completed_qty)
+					for item in scrap_item_dict.values():
+						if self.pro_doc and self.pro_doc.scrap_warehouse:
+							item["to_warehouse"] = self.pro_doc.scrap_warehouse
+					self.add_to_stock_entry_detail(scrap_item_dict, bom_no=self.bom_no)
+
 				elif self.work_order and (self.purpose == "Manufacture" or self.purpose == "Material Consumption for Manufacture") and \
 					frappe.db.get_single_value("Manufacturing Settings", "backflush_raw_materials_based_on")== "BOM" and \
 					frappe.db.get_single_value("Manufacturing Settings", "material_consumption")== 1:
@@ -1056,6 +1066,10 @@ class StockEntry(StockController):
 			se_child.qty = flt(item_dict[d]["qty"], se_child.precision("qty"))
 			se_child.expense_account = item_dict[d].get("expense_account")
 			se_child.cost_center = item_dict[d].get("cost_center") or cost_center
+
+			#PFG
+			se_child.allow_zero_valuation_rate = 1
+			
 			se_child.allow_alternative_item = item_dict[d].get("allow_alternative_item", 0)
 			se_child.subcontracted_item = item_dict[d].get("main_item_code")
 			se_child.original_item = item_dict[d].get("original_item")
