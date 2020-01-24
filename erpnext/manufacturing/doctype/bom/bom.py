@@ -100,6 +100,19 @@ class BOM(WebsiteGenerator):
 				child = self.append('operations', d)
 				child.hour_rate = flt(d.hour_rate / self.conversion_rate, 2)
 
+
+	def load_bom_materials_from_item(self):
+		materiales = []
+
+		for d in frappe.get_all("BOM Item Producto", 
+							filters={'parent': self.item,
+									'parenttype': 'Item',
+									'parentfield': 'materiales' },
+							fields="*"):
+			child = self.append('items', d)
+		self.set_bom_material_details()
+	
+
 	def validate_rm_item(self, item):
 		if (item[0]['name'] in [it.item_code for it in self.items]) and item[0]['name'] == self.item:
 			frappe.throw(_("BOM #{0}: Raw material cannot be same as main Item").format(self.name))
