@@ -72,7 +72,9 @@ class StockEntry(StockController):
 		if self._action == 'submit':
 			self.make_batches('t_warehouse')
 		else:
-			set_batch_nos(self, 's_warehouse')
+			#PFG
+			#set_batch_nos(self, 's_warehouse')
+			set_batch_nos_multiple(self, 's_warehouse')
 
 		self.set_incoming_rate()
 		self.validate_serialized_batch()
@@ -331,15 +333,17 @@ class StockEntry(StockController):
 			total_completed_qty = flt(self.fg_completed_qty) + flt(prod_order.produced_qty)
 			completed_qty = d.completed_qty + (allowance_percentage/100 * d.completed_qty)
 			if total_completed_qty > flt(completed_qty):
+				#PFG
+				"""
 				job_card = frappe.db.get_value('Job Card', {'operation_id': d.name}, 'name')
 				if not job_card:
 					frappe.throw(_("Work Order {0}: Job Card not found for the operation {1}")
 						.format(self.work_order, d.operation))
-
+				"""
 				work_order_link = frappe.utils.get_link_to_form('Work Order', self.work_order)
-				job_card_link = frappe.utils.get_link_to_form('Job Card', job_card)
-				frappe.throw(_("Row #{0}: Operation {1} is not completed for {2} qty of finished goods in Work Order {3}. Please update operation status via Job Card {4}.")
-					.format(d.idx, frappe.bold(d.operation), frappe.bold(total_completed_qty), work_order_link, job_card_link), OperationsNotCompleteError)
+				#job_card_link = frappe.utils.get_link_to_form('Job Card', job_card)
+				frappe.throw(_("Row #{0}: Operation {1} is not completed for {2} qty of finished goods in Work Order {3}. Please update operation status via Time Logs.")
+					.format(d.idx, frappe.bold(d.operation), frappe.bold(total_completed_qty), work_order_link), OperationsNotCompleteError)
 
 	def check_duplicate_entry_for_work_order(self):
 		other_ste = [t[0] for t in frappe.db.get_values("Stock Entry",  {
