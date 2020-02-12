@@ -245,7 +245,9 @@ class WorkOrder(Document):
 		self.update_completed_qty_in_material_request()
 		self.update_planned_qty()
 		self.update_ordered_qty()
-		self.create_job_card()
+		#PFG
+		#self.create_job_card()
+		self.make_time_logs()
 
 	def on_cancel(self):
 		self.validate_cancel()
@@ -253,6 +255,8 @@ class WorkOrder(Document):
 		frappe.db.set(self,'status', 'Cancelled')
 		self.update_work_order_qty_in_so()
 		self.delete_job_card()
+		#PFG
+		self.delete_timesheet()
 		self.update_completed_qty_in_material_request()
 		self.update_planned_qty()
 		self.update_ordered_qty()
@@ -381,6 +385,99 @@ class WorkOrder(Document):
 
 		return holidays[holiday_list]
 
+	def make_time_logs(self, open_new=False):
+		"""Capacity Planning. Plan time logs based on earliest availablity of workstation after
+			Planned Start Date. Time logs will be created and remain in Draft mode and must be submitted
+			before manufacturing entry can be made."""
+
+		if not self.operations:
+			return
+
+		timesheets = []
+		plan_days = frappe.db.get_single_value("Manufacturing Settings", "capacity_planning_for_days") or 30
+
+		timesheet = make_timesheet(self.name, self.company)
+		timesheet.set('time_logs', [])
+
+		for i, d in enumerate(self.operations):
+
+			if d.status != 'Completed':
+				self.set_start_end_time_for_workstation(d, i)
+
+				args = self.get_operations_data(d)
+
+				add_timesheet_detail(timesheet, args)
+				original_start_time = d.planned_start_time
+
+				# validate operating hours if workstation [not mandatory] is specified
+				try:
+					timesheet.validate_time_logs()
+				except OverlapError:
+					if frappe.message_log: frappe.message_log.pop()
+					timesheet.schedule_for_work_order(d.idx)
+				except WorkstationHolidayError:
+					if frappe.message_log: frappe.message_log.pop()
+					timesheet.schedule_for_work_order(d.idx)
+
+				from_time, to_time = self.get_start_end_time(timesheet, d.name)
+
+				if date_diff(from_time, original_start_time) > plan_days:
+					frappe.throw(_("Unable to find Time Slot in the next {0} days for Operation {1}").format(plan_days, d.operation))
+					break
+
+				d.planned_start_time = from_time
+				d.planned_end_time = to_time
+				d.db_update()
+
+		if timesheet and open_new:
+			return timesheet
+
+		if timesheet and timesheet.get("time_logs"):
+			timesheet.save()
+			timesheets.append(getlink("Timesheet", timesheet.name))
+
+		self.planned_end_date = self.operations[-1].planned_end_time
+		if timesheets:
+			frappe.local.message_log = []
+			frappe.msgprint(_("Timesheet created:") + "\n" + "\n".join(timesheets))
+
+	def get_operations_data(self, data):
+		return {
+			'from_time': get_datetime(data.planned_start_time),
+			'hours': data.time_in_mins / 60.0,
+			'to_time': get_datetime(data.planned_end_time),
+			'project': self.project,
+			'operation': data.operation,
+			'operation_id': data.name,
+			'workstation': data.workstation,
+			'completed_qty': flt(self.qty) - flt(data.completed_qty)
+		}
+
+	def set_start_end_time_for_workstation(self, data, index):
+		"""Set start and end time for given operation. If first operation, set start as
+		`planned_start_date`, else add time diff to end time of earlier operation."""
+
+		if index == 0:
+			data.planned_start_time = self.planned_start_date
+		else:
+			data.planned_start_time = get_datetime(self.operations[index-1].planned_end_time)\
+								+ get_mins_between_operations()
+
+		data.planned_end_time = get_datetime(data.planned_start_time) + relativedelta(minutes = data.time_in_mins)
+
+		if data.planned_start_time == data.planned_end_time:
+			frappe.throw(_("Capacity Planning Error"))
+
+	def get_start_end_time(self, timesheet, operation_id):
+		for data in timesheet.time_logs:
+			if data.operation_id == operation_id:
+				return data.from_time, data.to_time
+
+	def check_operation_fits_in_working_hours(self, d):
+		"""Raises expection if operation is longer than working hours in the given workstation."""
+		from erpnext.manufacturing.doctype.workstation.workstation import check_if_within_operating_hours
+		check_if_within_operating_hours(d.workstation, d.operation, d.planned_start_time, d.planned_end_time)
+
 	def update_operation_status(self):
 		for d in self.get("operations"):
 			if not d.completed_qty:
@@ -403,6 +500,10 @@ class WorkOrder(Document):
 			actual_end_dates = [d.actual_end_time for d in self.get("operations") if d.actual_end_time]
 			if actual_end_dates:
 				self.actual_end_date = max(actual_end_dates)
+				
+	def delete_timesheet(self):
+		for timesheet in frappe.get_all("Timesheet", ["name"], {"work_order": self.name}):
+			frappe.delete_doc("Timesheet", timesheet.name)
 
 	def delete_job_card(self):
 		for d in frappe.get_all("Job Card", ["name"], {"work_order": self.name}):
@@ -675,6 +776,53 @@ def make_stock_entry(work_order_id, purpose, qty=None):
 	stock_entry.get_items()
 	return stock_entry.as_dict()
 
+#PFG
+@frappe.whitelist()
+def get_events(start, end, filters=None):
+	"""Returns events for Gantt / Calendar view rendering.
+
+	:param start: Start date-time.
+	:param end: End date-time.
+	:param filters: Filters (JSON).
+	"""
+	from frappe.desk.calendar import get_event_conditions
+	conditions = get_event_conditions("Work Order", filters)
+
+	data = frappe.db.sql("""select name, production_item, planned_start_date,
+		planned_end_date, status
+		from `tabWork Order`
+		where ((ifnull(planned_start_date, '0000-00-00')!= '0000-00-00') \
+				and (planned_start_date <= %(end)s) \
+			and ((ifnull(planned_start_date, '0000-00-00')!= '0000-00-00') \
+				and ifnull(planned_end_date, '2199-12-31 00:00:00') >= %(start)s)) {conditions}
+		""".format(conditions=conditions), {
+			"start": start,
+			"end": end
+		}, as_dict=True, update={"allDay": 0})
+	return data
+
+#PFG
+@frappe.whitelist()
+def make_timesheet(work_order, company):
+	timesheet = frappe.new_doc("Timesheet")
+	timesheet.employee = ""
+	timesheet.work_order = work_order
+	timesheet.company = company
+	return timesheet
+
+#PFG
+@frappe.whitelist()
+def add_timesheet_detail(timesheet, args):
+	if isinstance(timesheet, unicode):
+		timesheet = frappe.get_doc('Timesheet', timesheet)
+
+	if isinstance(args, unicode):
+		args = json.loads(args)
+
+	timesheet.append('time_logs', args)
+	return timesheet
+
+#PFG
 @frappe.whitelist()
 def get_default_warehouse():
 	wip_warehouse = frappe.db.get_single_value("Manufacturing Settings",
@@ -682,6 +830,17 @@ def get_default_warehouse():
 	fg_warehouse = frappe.db.get_single_value("Manufacturing Settings",
 		"default_fg_warehouse")
 	return {"wip_warehouse": wip_warehouse, "fg_warehouse": fg_warehouse}
+
+#PFG
+@frappe.whitelist()
+def make_new_timesheet(source_name, target_doc=None):
+	po = frappe.get_doc('Work Order', source_name)
+	ts = po.make_time_logs(open_new=True)
+
+	if not ts or not ts.get('time_logs'):
+		frappe.throw(_("Already completed"))
+
+	return ts
 
 @frappe.whitelist()
 def stop_unstop(work_order, status):
