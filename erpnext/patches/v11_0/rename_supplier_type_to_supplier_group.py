@@ -21,7 +21,8 @@ def execute():
 		rename_field("Pricing Rule", "supplier_type", "supplier_group")
 		rename_field("Tax Rule", "supplier_type", "supplier_group")
 
-	build_tree()
+	#PFG
+	#build_tree()
 
 def build_tree():
 	frappe.db.sql("""update `tabSupplier Group` set parent_supplier_group = '{0}'
