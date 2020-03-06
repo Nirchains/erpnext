@@ -5,8 +5,9 @@ frappe.ui.form.on("Work Order", {
 	setup: function(frm) {
 		frm.custom_make_buttons = {
 			'Stock Entry': 'Start',
+			/*PFG
 			'Pick List': 'Create Pick List',
-			'Job Card': 'Create Job Card',
+			'Job Card': 'Create Job Card',*/
 		};
 
 		// Set query for warehouses
@@ -146,9 +147,10 @@ frappe.ui.form.on("Work Order", {
 			});
 
 			if(not_completed && not_completed.length) {
+				/*PFG
 				frm.add_custom_button(__('Create Job Card'), () => {
 					frm.trigger("make_job_card");
-				}).addClass('btn-primary');
+				}).addClass('btn-primary');*/
 			}
 		}
 

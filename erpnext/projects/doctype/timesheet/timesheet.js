@@ -56,7 +56,7 @@ frappe.ui.form.on("Timesheet", {
 		}
 
 		if (frm.doc.docstatus < 1) {
-
+			/*PFG
 			let button = 'Start Timer';
 			$.each(frm.doc.time_logs || [], function(i, row) {
 				if ((row.from_time <= frappe.datetime.now_datetime()) && !row.completed) {
@@ -87,6 +87,7 @@ frappe.ui.form.on("Timesheet", {
 					erpnext.timesheet.timer(frm);
 				}
 			}).addClass("btn-primary");
+			*/
 		}
 		if(frm.doc.per_billed > 0) {
 			frm.fields_dict["time_logs"].grid.toggle_enable("billing_hours", false);
