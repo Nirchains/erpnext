@@ -24,4 +24,3 @@ Hotels
 Hub Node
 Quality Management
 Communication
-Schools
