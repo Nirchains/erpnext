@@ -804,10 +804,15 @@ def get_events(start, end, filters=None):
 #PFG
 @frappe.whitelist()
 def make_timesheet(work_order, company):
+	from metalgrafica.util import get_operation
 	timesheet = frappe.new_doc("Timesheet")
 	timesheet.employee = ""
 	timesheet.work_order = work_order
 	timesheet.company = company
+	operation = get_operation(work_order)
+	timesheet.operation = operation.operation
+	timesheet.workstation = operation.workstation
+
 	return timesheet
 
 #PFG
