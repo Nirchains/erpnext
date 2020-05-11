@@ -840,13 +840,6 @@ class StockEntry(StockController):
 					"backflush_raw_materials_based_on")== "Material Transferred for Manufacture"):
 					self.get_transfered_raw_materials()
 
-					#PFG: Solucion a problema de las mermas
-					scrap_item_dict = self.get_bom_scrap_material(self.fg_completed_qty)
-					for item in scrap_item_dict.values():
-						if self.pro_doc and self.pro_doc.scrap_warehouse:
-							item["to_warehouse"] = self.pro_doc.scrap_warehouse
-					self.add_to_stock_entry_detail(scrap_item_dict, bom_no=self.bom_no)
-
 				elif self.work_order and (self.purpose == "Manufacture" or self.purpose == "Material Consumption for Manufacture") and \
 					frappe.db.get_single_value("Manufacturing Settings", "backflush_raw_materials_based_on")== "BOM" and \
 					frappe.db.get_single_value("Manufacturing Settings", "material_consumption")== 1:
