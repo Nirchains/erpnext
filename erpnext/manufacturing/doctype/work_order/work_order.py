@@ -158,7 +158,7 @@ class WorkOrder(Document):
 		'''Update status of work order if unknown'''
 		#if status != "Stopped":
 		#PFG Para que funcione el "Marcar como completada"
-		if status != "Stopped" and not (self.status == "Not Started" and status == "Completed") and not (self.status == "In Process" and status = "Completed"):
+		if status != "Stopped" and not (self.status == "Not Started" and status == "Completed") and not (self.status == "In Process" and status == "Completed"):
 			status = self.get_status(status)
 
 		if status != self.status:
