@@ -160,6 +160,19 @@ frappe.ui.form.on("Work Order", {
 			}
 		}
 
+
+		if (frm.doc.docstatus == 0) {
+			frm.add_custom_button(__('Modificar cantidades'), () => {
+				erpnext.utils.modificar_cantidades({
+					frm: frm,
+					child_docname: "required_items",
+					warehouse_field: "source_warehouse",
+					child_doctype: "Work Order Item",
+					original_item_field: "original_item"
+				});
+			});
+		}
+
 		if(frm.doc.required_items && frm.doc.allow_alternative_item) {
 			const has_alternative = frm.doc.required_items.find(i => i.allow_alternative_item === 1);
 			if (frm.doc.docstatus == 0 && has_alternative) {

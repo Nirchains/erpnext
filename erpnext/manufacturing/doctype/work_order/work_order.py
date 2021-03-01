@@ -53,7 +53,7 @@ class WorkOrder(Document):
 
 		validate_uom_is_integer(self, "stock_uom", ["qty", "produced_qty"])
 
-		self.set_required_items(reset_only_qty = len(self.get("required_items")))
+		#self.set_required_items(reset_only_qty = len(self.get("required_items")))
 
 	def validate_sales_order(self):
 		if self.sales_order:
@@ -161,6 +161,9 @@ class WorkOrder(Document):
 		if status != "Stopped" and not (self.status == "Not Started" and status == "Completed") and not (self.status == "In Process" and status == "Completed"):
 			status = self.get_status(status)
 
+		if status == "Stopped":
+			self.db_set("docstatus", 0)
+
 		if status != self.status:
 			self.db_set("status", status)
 
@@ -249,7 +252,8 @@ class WorkOrder(Document):
 		self.update_ordered_qty()
 		#PFG
 		#self.create_job_card()
-		self.make_time_logs()
+		if (frappe.db.count("Timesheet", filters={'work_order': self.name}) == 0):
+			self.make_time_logs()
 
 	def on_cancel(self):
 		self.validate_cancel()

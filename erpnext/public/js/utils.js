@@ -312,6 +312,7 @@ erpnext.utils.select_alternate_items = function(opts) {
 	const frm = opts.frm;
 	const warehouse_field = opts.warehouse_field || 'warehouse';
 	const item_field = opts.item_field || 'item_code';
+	const required_qty_field = opts.required_qty_field || 'required_qty';
 
 	this.data = [];
 	const dialog = new frappe.ui.Dialog({
@@ -335,14 +336,24 @@ erpnext.utils.select_alternate_items = function(opts) {
 					in_list_view: 1,
 					read_only: 1,
 					label: __('Item Code')
-				}, {
+				}, 
+				{
+					fieldtype:'Float',
+					fieldname:"required_qty_item",
+					default: 0,
+					read_only: 1,
+					in_list_view: 1,
+					columns: 1,
+					label: __('Cantidad de producto')
+				},
+				{
 					fieldtype:'Link',
 					fieldname:"alternate_item",
 					options: 'Item',
 					default: "",
 					in_list_view: 1,
 					label: __('Alternate Item'),
-					onchange: function() {
+					change: function() {
 						const item_code = this.get_value();
 						const warehouse = this.grid_row.on_grid_fields_dict.warehouse.get_value();
 						if (item_code && warehouse) {
@@ -367,14 +378,27 @@ erpnext.utils.select_alternate_items = function(opts) {
 							}
 						};
 					}
-				}, {
+				}, 
+				{
+					fieldtype:'Float',
+					fieldname:"required_qty_alternative",
+					default: 0,
+					in_list_view: 1,
+					columns: 1,
+					label: __('Cantidad de alternativo'),
+					change: function () {
+						var qty = this.grid_row.on_grid_fields_dict.required_qty_item.get_value() - this.get_value();
+						this.grid_row.on_grid_fields_dict.required_qty_item.set_value(qty);
+					}
+				},
+				{
 					fieldtype:'Link',
 					fieldname:"warehouse",
 					options: 'Warehouse',
 					default: "",
 					in_list_view: 1,
 					label: __('Warehouse'),
-					onchange: function() {
+					change: function() {
 						const warehouse = this.get_value();
 						const item_code = this.grid_row.on_grid_fields_dict.item_code.get_value();
 						if (item_code && warehouse) {
@@ -391,7 +415,8 @@ erpnext.utils.select_alternate_items = function(opts) {
 							})
 						}
 					},
-				}, {
+				}, 
+				{
 					fieldtype:'Float',
 					fieldname:"actual_qty",
 					default: 0,
@@ -408,21 +433,37 @@ erpnext.utils.select_alternate_items = function(opts) {
 					return true;
 				}
 			});
+			var required_items = frm.layout.fields_dict.required_items;
 
 			alternative_items.forEach(d => {
 				let row = frappe.get_doc(opts.child_doctype, d.docname);
 				let qty = null;
+				let new_row = null;
 				if (row.doctype === 'Work Order Item') {
 					qty = row.required_qty;
+					var new_row = Object.create(row);
+					new_row[item_field] = d.alternate_item;
+					row['required_qty'] = d.required_qty_item;
+					new_row['required_qty'] = d.required_qty_alternative; 
+					if (d.required_qty_item == 0) {
+						required_items.grid.grid_rows[row.idx].remove();
+					}
 				} else {
 					qty = row.qty;
+					row[item_field] = d.alternate_item;
 				}
-				row[item_field] = d.alternate_item;
+				
 				frm.script_manager.trigger(item_field, row.doctype, row.name)
 					.then(() => {
-						frappe.model.set_value(row.doctype, row.name, 'qty', qty);
-						frappe.model.set_value(row.doctype, row.name,
+						if (row.doctype === 'Work Order Item') {
+							if(required_items) {
+								required_items.grid.add_new_row(row["idx"], null, true, new_row);
+							}
+						} else {
+							frappe.model.set_value(row.doctype, row.name, 'qty', qty);
+							frappe.model.set_value(row.doctype, row.name,
 							opts.original_item_field, d.item_code);
+						}
 					});
 			});
 
@@ -438,6 +479,7 @@ erpnext.utils.select_alternate_items = function(opts) {
 				"docname": d.name,
 				"item_code": d[item_field],
 				"warehouse": d[warehouse_field],
+				"required_qty_item": d[required_qty_field],
 				"actual_qty": d.actual_qty
 			});
 		}
@@ -447,6 +489,131 @@ erpnext.utils.select_alternate_items = function(opts) {
 	dialog.fields_dict.alternative_items.grid.refresh();
 	dialog.show();
 }
+
+
+erpnext.utils.modificar_cantidades = function(opts) {
+	const frm = opts.frm;
+	const warehouse_field = opts.warehouse_field || 'warehouse';
+	const item_field = opts.item_field || 'item_code';
+	const required_qty_field = opts.required_qty_field || 'required_qty';
+
+	this.data = [];
+	const dialog = new frappe.ui.Dialog({
+		title: __("Modificar cantidades"),
+		fields: [
+			{fieldtype:'Section Break', label: __('Items')},
+			{
+				fieldname: "alternative_items", fieldtype: "Table", cannot_add_rows: true,
+				in_place_edit: true, data: this.data,
+				get_data: () => {
+					return this.data;
+				},
+				fields: [{
+					fieldtype:'Data',
+					fieldname:"docname",
+					hidden: 1
+				}, {
+					fieldtype:'Link',
+					fieldname:"item_code",
+					options: 'Item',
+					in_list_view: 1,
+					read_only: 1,
+					label: __('Item Code')
+				}, 
+				{
+					fieldtype:'Float',
+					fieldname:"required_qty_item",
+					default: 0,
+					read_only: 0,
+					in_list_view: 1,
+					columns: 1,
+					label: __('Cantidad de producto')
+				},
+				{
+					fieldtype:'Link',
+					fieldname:"warehouse",
+					options: 'Warehouse',
+					default: "",
+					in_list_view: 1,
+					label: __('Warehouse'),
+					change: function() {
+						const warehouse = this.get_value();
+						const item_code = this.grid_row.on_grid_fields_dict.item_code.get_value();
+						if (item_code && warehouse) {
+							frappe.call({
+								method: "erpnext.stock.utils.get_latest_stock_qty",
+								args: {
+									item_code: item_code,
+									warehouse: warehouse
+								},
+								callback: (r) => {
+									this.grid_row.on_grid_fields_dict
+										.actual_qty.set_value(r.message || 0);
+								}
+							})
+						}
+					},
+				}, 
+				{
+					fieldtype:'Float',
+					fieldname:"actual_qty",
+					default: 0,
+					read_only: 1,
+					in_list_view: 1,
+					label: __('Available Qty')
+				}]
+			},
+		],
+		primary_action: function() {
+			const args = this.get_values()["alternative_items"];
+			const alternative_items = args;
+			var required_items = frm.layout.fields_dict.required_items;
+
+			alternative_items.forEach(d => {
+				let row = frappe.get_doc(opts.child_doctype, d.docname);
+				let qty = null;
+				let new_row = null;
+				
+				row['required_qty'] = d.required_qty_item;
+				if (d.required_qty_item == 0) {
+					required_items.grid.grid_rows[row.idx].remove();
+				}
+								
+				frm.script_manager.trigger(item_field, row.doctype, row.name)
+					.then(() => {
+						if (row.doctype === 'Work Order Item') {
+							
+						} else {
+							//frappe.model.set_value(row.doctype, row.name, 'qty', qty);
+							//frappe.model.set_value(row.doctype, row.name,
+							//opts.original_item_field, d.item_code);
+						}
+					});
+			});
+
+			refresh_field(opts.child_docname);
+			this.hide();
+		},
+		primary_action_label: __('Update')
+	});
+
+	frm.doc[opts.child_docname].forEach(d => {
+		if (!opts.condition || opts.condition(d)) {
+			dialog.fields_dict.alternative_items.df.data.push({
+				"docname": d.name,
+				"item_code": d[item_field],
+				"warehouse": d[warehouse_field],
+				"required_qty_item": d[required_qty_field],
+				"actual_qty": d.actual_qty
+			});
+		}
+	})
+
+	this.data = dialog.fields_dict.alternative_items.df.data;
+	dialog.fields_dict.alternative_items.grid.refresh();
+	dialog.show();
+}
+
 
 erpnext.utils.update_child_items = function(opts) {
 	const frm = opts.frm;
