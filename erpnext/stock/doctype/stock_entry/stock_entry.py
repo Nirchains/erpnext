@@ -206,9 +206,10 @@ class StockEntry(StockController):
 		stock_items = self.get_stock_items()
 		serialized_items = self.get_serialized_items()
 		for item in self.get("items"):
-			if flt(item.qty) and flt(item.qty) < 0:
-				frappe.throw(_("Row {0}: The item {1}, quantity must be positive number")
-					.format(item.idx, frappe.bold(item.item_code)))
+			#PFG
+			#if flt(item.qty) and flt(item.qty) < 0:
+			#	frappe.throw(_("Row {0}: The item {1}, quantity must be positive number")
+			#		.format(item.idx, frappe.bold(item.item_code)))
 
 			if item.item_code not in stock_items:
 				frappe.throw(_("{0} is not a stock Item").format(item.item_code))
