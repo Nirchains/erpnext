@@ -1054,24 +1054,24 @@ class StockEntry(StockController):
 		transferred_materials = frappe.db.sql("""
 			select
 				item_name, original_item, item_code, sum(qty) as qty, sed.t_warehouse as warehouse,
-				description, stock_uom, expense_account, cost_center
+				description, stock_uom, expense_account, cost_center, batch_no
 			from `tabStock Entry` se,`tabStock Entry Detail` sed
 			where
 				se.name = sed.parent and se.docstatus=1 and se.purpose='Material Transfer for Manufacture'
 				and se.work_order= %s and ifnull(sed.t_warehouse, '') != ''
-			group by sed.item_code, sed.t_warehouse
+			group by sed.batch_no, sed.item_code, sed.t_warehouse
 		""", self.work_order, as_dict=1)
 
 		materials_already_backflushed = frappe.db.sql("""
 			select
-				item_code, sed.s_warehouse as warehouse, sum(qty) as qty
+				item_code, sed.s_warehouse as warehouse, sum(qty) as qty, batch_no
 			from
 				`tabStock Entry` se, `tabStock Entry Detail` sed
 			where
 				se.name = sed.parent and se.docstatus=1
 				and (se.purpose='Manufacture' or se.purpose='Material Consumption for Manufacture')
 				and se.work_order= %s and ifnull(sed.s_warehouse, '') != ''
-			group by sed.item_code, sed.s_warehouse
+			group by sed.batch_no, sed.item_code, sed.s_warehouse
 		""", self.work_order, as_dict=1)
 
 		backflushed_materials= {}
@@ -1253,6 +1253,7 @@ class StockEntry(StockController):
 			se_child.bom_no = bom_no
 			
 			se_child.batch_no = cstr(item_dict[d].get("batch_no"))
+
 
 	def validate_with_material_request(self):
 		for item in self.get("items"):
